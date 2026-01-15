@@ -2,10 +2,10 @@
 pub struct Cli {
     /// Check the current status of the dotfiles
     #[arg(long, short)]
-    check: bool,
+    pub check: bool,
     /// Update the dotfiles
     #[arg(long, short)]
-    update: bool,
+    pub update: bool,
 }
 
 #[cfg(test)]

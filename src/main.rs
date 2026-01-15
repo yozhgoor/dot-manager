@@ -1,14 +1,14 @@
 use anyhow::Result;
-use std::io::Write;
 use clap::Parser;
+use std::io::Write;
 
 mod cli;
 mod config;
 mod dotfiles;
 mod manager;
 
-use config::Config;
 use cli::Cli;
+use config::Config;
 
 fn main() -> Result<()> {
     env_logger::builder()
