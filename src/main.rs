@@ -9,6 +9,7 @@ mod manager;
 
 use cli::Cli;
 use config::Config;
+use manager::Manager;
 
 fn main() -> Result<()> {
     env_logger::builder()
@@ -29,7 +30,9 @@ fn main() -> Result<()> {
 
     let cli = Cli::parse();
     let config = Config::get_or_create()?;
-    manager::run(cli, config)?;
+
+    let manager = Manager::check(config, cli.check)?;
+    manager.run(cli)?;
 
     Ok(())
 }
