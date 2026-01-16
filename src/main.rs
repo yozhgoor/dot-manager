@@ -15,7 +15,7 @@ fn main() -> Result<()> {
 
     let manager = Manager::new(config)?;
 
-    if !cli.upload && !cli.download && !cli.update {
+    if !cli.upload && !cli.download && cli.update.is_none() {
         manager.check();
     }
 

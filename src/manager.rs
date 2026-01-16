@@ -38,16 +38,14 @@ impl Manager {
 
                 if let Some(path) = remote_path {
                     (path.to_path_buf(), config_remote_path.join(&path))
-                } else {
-                    if !local_path.is_dir() {
-                        if let Some(file_name) = local_path.file_name() {
-                            (PathBuf::from(file_name), config_remote_path.join(&file_name))
-                        } else {
-                            bail!("failed to determine remote path");
-                        }
+                } else if !local_path.is_dir() {
+                    if let Some(file_name) = local_path.file_name() {
+                        (PathBuf::from(file_name), config_remote_path.join(file_name))
                     } else {
-                        bail!("remote path cannot be a directory");
+                        bail!("failed to determine remote path");
                     }
+                } else {
+                    bail!("remote path cannot be a directory");
                 }
             };
 
@@ -71,7 +69,11 @@ impl Manager {
                 }
                 (true, false) => {
                     let local_content = read_content(&local_file_path)?;
-                    statuses.push(Status::Upload(FileWithContent::new(remote_path, remote_file_path, local_content)));
+                    statuses.push(Status::Upload(FileWithContent::new(
+                        remote_path,
+                        remote_file_path,
+                        local_content,
+                    )));
                 }
                 (false, true) => {
                     let remote_content = read_content(&remote_file_path)?;
@@ -111,7 +113,10 @@ impl Manager {
             match status {
                 Status::UpToDate(file) => up_to_date.push(file.short_path.display()),
                 Status::Update(local_file, remote_file) => {
-                    to_update.push((local_file.short_path.display(), remote_file.short_path.display()));
+                    to_update.push((
+                        local_file.short_path.display(),
+                        remote_file.short_path.display(),
+                    ));
                 }
                 Status::Upload(file) => to_upload.push(file.short_path.display()),
                 Status::Download(file) => to_download.push(file.short_path.display()),
