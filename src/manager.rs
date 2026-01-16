@@ -18,29 +18,62 @@ impl Manager {
     pub fn new(config: Config) -> Result<Self> {
         let mut statuses = Vec::new();
 
+        let full_remote_path = if !config.remote_path.starts_with("/") {
+            if let Some(ref home_path) = config.home_path {
+                home_path.join(&config.remote_path)
+            } else if let Ok(home_path) = env::var("HOME") {
+                PathBuf::from(home_path).join(&config.remote_path)
+            } else {
+                bail!("failed to determine `HOME` path");
+            }
+        } else {
+            config.remote_path
+        };
+
+        let pkg_list_short_path = PathBuf::from("packages.x86_64");
+        let remote_pkg_list_path = full_remote_path.join(&pkg_list_short_path);
+        let local_pkg_list_content = {
+            let stdout = std::process::Command::new("pacman")
+                .args(["--query", "--explicit"])
+                .output()?
+                .stdout;
+
+            str::from_utf8(&stdout)?.to_string()
+        };
+
+        if !remote_pkg_list_path.exists() {
+            statuses.push(Status::Upload(FileWithContent::new(
+                pkg_list_short_path,
+                remote_pkg_list_path,
+                local_pkg_list_content,
+            )));
+        } else {
+            let remote_content = fs::read_to_string(&remote_pkg_list_path)?;
+            if local_pkg_list_content == remote_content {
+                statuses.push(Status::UpToDate(File::new(
+                    pkg_list_short_path,
+                    remote_pkg_list_path,
+                )));
+            } else {
+                statuses.push(Status::UpdatePkgList(FileWithContent::new(
+                    pkg_list_short_path,
+                    remote_pkg_list_path,
+                    remote_content,
+                )));
+            }
+        }
+
         for Dotfile {
             local_path,
             remote_path,
         } in config.files
         {
             let (remote_path, remote_file_path) = {
-                let config_remote_path = if !config.remote_path.starts_with("/") {
-                    if let Some(ref home_path) = config.home_path {
-                        home_path.join(&config.remote_path)
-                    } else if let Ok(home_path) = env::var("HOME") {
-                        PathBuf::from(home_path).join(&config.remote_path)
-                    } else {
-                        bail!("failed to determine `HOME` path");
-                    }
-                } else {
-                    config.remote_path.clone()
-                };
-
                 if let Some(path) = remote_path {
-                    (path.to_path_buf(), config_remote_path.join(&path))
+                    (path.to_path_buf(), full_remote_path.join(&path))
                 } else if !local_path.is_dir() {
                     if let Some(file_name) = local_path.file_name() {
-                        (PathBuf::from(file_name), config_remote_path.join(file_name))
+                        (PathBuf::from(file_name), full_remote_path.join(file_name))
                     } else {
                         bail!("failed to determine remote path");
                     }
@@ -105,6 +138,7 @@ impl Manager {
     pub fn check(&self) {
         let mut up_to_date = Vec::new();
         let mut to_update = Vec::new();
+        let mut to_update_pkg_list = None;
         let mut to_upload = Vec::new();
         let mut to_download = Vec::new();
         let mut absent = Vec::new();
@@ -118,6 +152,7 @@ impl Manager {
                         remote_file.short_path.display(),
                     ));
                 }
+                Status::UpdatePkgList(file) => to_update_pkg_list = Some(file.short_path.display()),
                 Status::Upload(file) => to_upload.push(file.short_path.display()),
                 Status::Download(file) => to_download.push(file.short_path.display()),
                 Status::Absent(file) => absent.push(file.short_path.display()),
@@ -134,6 +169,9 @@ impl Manager {
 
         if !to_update.is_empty() {
             println!("To update:");
+            if let Some(path) = to_update_pkg_list {
+                println!("* {}", path);
+            }
             for (local, remote) in to_update {
                 println!("* {} - {}", local, remote);
             }
@@ -180,6 +218,10 @@ impl Manager {
                         }
                     }
                 }
+                Status::UpdatePkgList(file) if cli.update.is_some() => {
+                    write_content(&file.full_path, &file.content)?;
+                    println!("`{}`: Updated", file.short_path.display());
+                }
                 Status::Upload(file) if cli.upload => {
                     write_content(&file.full_path, &file.content)?;
                     println!("`{}`: Uploaded", file.short_path.display());
@@ -200,6 +242,7 @@ impl Manager {
 enum Status {
     UpToDate(File),
     Update(FileWithContent, FileWithContent),
+    UpdatePkgList(FileWithContent),
     Upload(FileWithContent),
     Download(FileWithContent),
     Absent(File),
