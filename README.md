@@ -23,18 +23,20 @@ provide the path you want using the optional `home_path` field to override the e
 
 Example:
 ```toml
-remote_path = "dotfiles"
-# remote_path = "/home/user/dotfiles" if you want to use a full path
+remote_path = "dotfiles" # "/home/user/dotfiles" if you want to use a full path
 
-home_path = "/home/user" # optional
+# optional
+# home_path = "/home/another_user"
 
 [[file]]
 local = ".gitignore"
-remote = "git/.gitignore" # This will synchronize `.gitignore` to `dotfiles/git/.gitignore`
+# This will synchronize `$HOME/.gitignore` to `$HOME/dotfiles/git/.gitignore`
+remote = "git/.gitignore"
 
 [[file]]
-local = "/home/user/.config/dot-manager/config.toml"
-remote = "config.toml" # This will synchronize `.config/dot-manager` to `dotfiles/config.toml`
+local = ".config/dot-manager/config.toml"
+# This will synchronize `$HOME/.config/dot-manager/config.toml` to `$HOME/dotfiles/config.toml`
+remote = "config.toml"
 ```
 
 Note that you need to provide a path to a file, you can't synchronize a full directory (yet?).
