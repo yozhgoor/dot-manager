@@ -6,8 +6,7 @@ use std::{
 
 use crate::{
     cli::{Cli, UpdateMode},
-    config::Config,
-    dotfiles::Dotfile,
+    config::{Config, Dotfile},
 };
 
 const IGNORE_LINE: &str = "dot-manager: ignore after this";
@@ -24,10 +23,30 @@ impl Manager {
             remote_path,
         } in config.files
         {
-            let remote_file_path = if let Some(ref remote_root_path) = config.remote_path {
-                remote_root_path.join(&remote_path)
-            } else {
-                bail!("`remote_path` configuration not provided");
+            let (remote_path, remote_file_path) = {
+                let config_remote_path = if !config.remote_path.starts_with("/") {
+                    if let Some(ref home_path) = config.home_path {
+                        home_path.join(&config.remote_path)
+                    } else if let Ok(home_path) = env::var("HOME") {
+                        PathBuf::from(home_path).join(&config.remote_path)
+                    } else {
+                        bail!("failed to determine `HOME` path");
+                    }
+                } else {
+                    config.remote_path.clone()
+                };
+
+                if let Some(path) = remote_path {
+                    (path.to_path_buf(), config_remote_path.join(&path))
+                } else if !local_path.is_dir() {
+                    if let Some(file_name) = local_path.file_name() {
+                        (PathBuf::from(file_name), config_remote_path.join(file_name))
+                    } else {
+                        bail!("failed to determine remote path");
+                    }
+                } else {
+                    bail!("remote path cannot be a directory");
+                }
             };
 
             let local_file_path = {
@@ -46,30 +65,34 @@ impl Manager {
 
             match (local_file_path.exists(), remote_file_path.exists()) {
                 (false, false) => {
-                    statuses.push(Status::Absent(local_path, local_file_path));
+                    statuses.push(Status::Absent(File::new(local_path, local_file_path)));
                 }
                 (true, false) => {
                     let local_content = read_content(&local_file_path)?;
-                    statuses.push(Status::Upload(remote_path, remote_file_path, local_content));
+                    statuses.push(Status::Upload(FileWithContent::new(
+                        remote_path,
+                        remote_file_path,
+                        local_content,
+                    )));
                 }
                 (false, true) => {
                     let remote_content = read_content(&remote_file_path)?;
-                    statuses.push(Status::Download(
+                    statuses.push(Status::Download(FileWithContent::new(
                         local_path,
                         local_file_path,
                         remote_content,
-                    ));
+                    )));
                 }
                 (true, true) => {
                     let local_content = read_content(&local_file_path)?;
                     let remote_content = read_content(&remote_file_path)?;
 
                     if local_content == remote_content {
-                        statuses.push(Status::UpToDate(local_path, local_file_path));
+                        statuses.push(Status::UpToDate(File::new(local_path, local_file_path)));
                     } else {
                         statuses.push(Status::Update(
-                            (local_path, local_file_path, local_content),
-                            (remote_path, remote_file_path, remote_content),
+                            FileWithContent::new(local_path, local_file_path, local_content),
+                            FileWithContent::new(remote_path, remote_file_path, remote_content),
                         ));
                     }
                 }
@@ -88,13 +111,16 @@ impl Manager {
 
         for status in &self.0 {
             match status {
-                Status::UpToDate(path, _) => up_to_date.push(path.display()),
-                Status::Update((local_path, _, _), (remote_path, _, _)) => {
-                    to_update.push((local_path.display(), remote_path.display()));
+                Status::UpToDate(file) => up_to_date.push(file.short_path.display()),
+                Status::Update(local_file, remote_file) => {
+                    to_update.push((
+                        local_file.short_path.display(),
+                        remote_file.short_path.display(),
+                    ));
                 }
-                Status::Upload(path, _, _) => to_upload.push(path.display()),
-                Status::Download(path, _, _) => to_download.push(path.display()),
-                Status::Absent(path, _) => absent.push(path.display()),
+                Status::Upload(file) => to_upload.push(file.short_path.display()),
+                Status::Download(file) => to_download.push(file.short_path.display()),
+                Status::Absent(file) => absent.push(file.short_path.display()),
             }
         }
 
@@ -142,26 +168,25 @@ impl Manager {
     pub fn run(&self, cli: Cli) -> Result<()> {
         for status in &self.0 {
             match status {
-                Status::Update(
-                    (_, local_path, local_content),
-                    (_, remote_path, remote_content),
-                ) if cli.update.is_some() => match cli.update.as_ref().expect("update is some") {
-                    UpdateMode::Local => {
-                        write_content(local_path, remote_content)?;
-                        println!("`{}`: Updated", local_path.display());
+                Status::Update(local_file, remote_file) if cli.update.is_some() => {
+                    match cli.update.as_ref().expect("update is some") {
+                        UpdateMode::Local => {
+                            write_content(&local_file.full_path, &remote_file.content)?;
+                            println!("`{}`: Updated", local_file.short_path.display());
+                        }
+                        UpdateMode::Remote => {
+                            write_content(&remote_file.full_path, &local_file.content)?;
+                            println!("`{}`: Updated", remote_file.short_path.display());
+                        }
                     }
-                    UpdateMode::Remote => {
-                        write_content(remote_path, local_content)?;
-                        println!("`{}`: Updated", remote_path.display());
-                    }
-                },
-                Status::Upload(_, path, content) if cli.upload => {
-                    write_content(path, content)?;
-                    println!("`{}`: Uploaded", path.display());
                 }
-                Status::Download(_, path, content) if cli.download => {
-                    write_content(path, content)?;
-                    println!("`{}`: Downloaded", path.display());
+                Status::Upload(file) if cli.upload => {
+                    write_content(&file.full_path, &file.content)?;
+                    println!("`{}`: Uploaded", file.short_path.display());
+                }
+                Status::Download(file) if cli.download => {
+                    write_content(&file.full_path, &file.content)?;
+                    println!("`{}`: Downloaded", file.short_path.display());
                 }
                 _ => {}
             }
@@ -173,11 +198,43 @@ impl Manager {
 
 #[derive(Debug, Eq, PartialEq)]
 enum Status {
-    UpToDate(PathBuf, PathBuf),
-    Update((PathBuf, PathBuf, String), (PathBuf, PathBuf, String)),
-    Upload(PathBuf, PathBuf, String),
-    Download(PathBuf, PathBuf, String),
-    Absent(PathBuf, PathBuf),
+    UpToDate(File),
+    Update(FileWithContent, FileWithContent),
+    Upload(FileWithContent),
+    Download(FileWithContent),
+    Absent(File),
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct File {
+    short_path: PathBuf,
+    full_path: PathBuf,
+}
+
+impl File {
+    fn new(short_path: PathBuf, full_path: PathBuf) -> Self {
+        Self {
+            short_path,
+            full_path,
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct FileWithContent {
+    short_path: PathBuf,
+    full_path: PathBuf,
+    content: String,
+}
+
+impl FileWithContent {
+    fn new(short_path: PathBuf, full_path: PathBuf, content: String) -> Self {
+        Self {
+            short_path,
+            full_path,
+            content,
+        }
+    }
 }
 
 fn read_content(path: &Path) -> Result<String> {

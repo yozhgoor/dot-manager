@@ -1,8 +1,5 @@
 #[derive(clap::Parser, Debug, Clone)]
 pub struct Cli {
-    /// Check the current status of the dotfiles
-    #[arg(long, short)]
-    pub check: bool,
     /// Upload local files
     #[arg(long, short)]
     pub upload: bool,
@@ -16,9 +13,9 @@ pub struct Cli {
 
 #[derive(Debug, Clone, clap::ValueEnum)]
 pub enum UpdateMode {
-    /// Update local files from remote files
+    /// Update local files from the remote directory
     Local,
-    /// Update remote files from local files
+    /// Update remote files from the local filesystem
     Remote,
 }
 

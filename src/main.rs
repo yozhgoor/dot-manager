@@ -3,7 +3,6 @@ use clap::Parser;
 
 mod cli;
 mod config;
-mod dotfiles;
 mod manager;
 
 use cli::Cli;
@@ -12,11 +11,11 @@ use manager::Manager;
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let config = Config::get_or_create()?;
+    let config = Config::get()?;
 
     let manager = Manager::new(config)?;
 
-    if cli.check {
+    if !cli.upload && !cli.download && cli.update.is_none() {
         manager.check();
     }
 

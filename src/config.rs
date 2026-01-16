@@ -1,46 +1,53 @@
-use anyhow::Result;
+use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
-use crate::dotfiles::Dotfiles;
-
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize)]
 pub struct Config {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remote_path: PathBuf,
+    #[serde(default)]
     pub home_path: Option<PathBuf>,
-
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub remote_path: Option<PathBuf>,
-
-    #[serde(default, skip_serializing_if = "Dotfiles::is_empty")]
+    #[serde(default)]
     pub files: Dotfiles,
 }
 
 impl Config {
-    fn new() -> Self {
-        Self {
-            home_path: None,
-            remote_path: None,
-            files: Dotfiles::new(),
-        }
-    }
-
-    pub fn get_or_create() -> Result<Self> {
+    pub fn get() -> Result<Self> {
         let config_dir = xdg::BaseDirectories::with_prefix(env!("CARGO_PKG_NAME"));
         let config_file_path = config_dir.place_config_file("config.toml")?;
 
-        let config: Self = match fs::read_to_string(&config_file_path) {
-            Ok(file) => toml::de::from_str(&file)?,
-            Err(_) => {
-                let config = Self::new();
-                fs::write(&config_file_path, toml::ser::to_string(&config)?)?;
-                println!("Config file created at: {}", config_file_path.display());
-
-                config
+        match fs::read_to_string(&config_file_path) {
+            Ok(file) => Ok(
+                toml::de::from_str(&file).context("failed to deserialize configuration file")?
+            ),
+            Err(err) => {
+                if !config_file_path.exists() {
+                    bail!("configuration file does not exists");
+                } else {
+                    bail!("failed to read configuration file: {}", err);
+                }
             }
-        };
-
-        Ok(config)
+        }
     }
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct Dotfiles(Vec<Dotfile>);
+
+impl std::iter::IntoIterator for Dotfiles {
+    type Item = Dotfile;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Dotfile {
+    #[serde(rename = "local")]
+    pub local_path: PathBuf,
+    #[serde(default, rename = "remote")]
+    pub remote_path: Option<PathBuf>,
 }
