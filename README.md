@@ -22,7 +22,7 @@ start with `/`. The full path is determined using the `$HOME` environment variab
 provide the path you want using the optional `home_path` field to override the environment variable.
 
 Example:
-```
+```toml
 remote_path = "dotfiles"
 # remote_path = "/home/user/dotfiles" if you want to use a full path
 
