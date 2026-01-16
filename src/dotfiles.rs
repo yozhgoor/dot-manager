@@ -14,6 +14,15 @@ impl Dotfiles {
     }
 }
 
+impl std::iter::IntoIterator for Dotfiles {
+    type Item = Dotfile;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Dotfile {
     pub origin: PathBuf,

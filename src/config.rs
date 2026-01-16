@@ -1,13 +1,15 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::path::PathBuf;
 
 use crate::dotfiles::Dotfiles;
 
 #[derive(Debug, Deserialize, Serialize)]
-pub(crate) struct Config {
+pub struct Config {
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub remote_url: Option<String>,
+    pub remote_path: Option<PathBuf>,
+
     #[serde(default, skip_serializing_if = "Dotfiles::is_empty")]
     pub files: Dotfiles,
 }
@@ -15,7 +17,7 @@ pub(crate) struct Config {
 impl Config {
     fn new() -> Self {
         Self {
-            remote_url: None,
+            remote_path: None,
             files: Dotfiles::new(),
         }
     }

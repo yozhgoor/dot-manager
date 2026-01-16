@@ -1,9 +1,13 @@
 use anyhow::Result;
+use clap::Parser;
 use std::io::Write;
 
+mod cli;
 mod config;
 mod dotfiles;
+mod manager;
 
+use cli::Cli;
 use config::Config;
 
 fn main() -> Result<()> {
@@ -23,7 +27,9 @@ fn main() -> Result<()> {
         )
         .init();
 
-    let _config = Config::get_or_create()?;
+    let cli = Cli::parse();
+    let config = Config::get_or_create()?;
+    manager::run(cli, config)?;
 
     Ok(())
 }
