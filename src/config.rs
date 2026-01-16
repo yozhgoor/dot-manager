@@ -8,6 +8,9 @@ use crate::dotfiles::Dotfiles;
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub home_path: Option<PathBuf>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub remote_path: Option<PathBuf>,
 
     #[serde(default, skip_serializing_if = "Dotfiles::is_empty")]
@@ -17,6 +20,7 @@ pub struct Config {
 impl Config {
     fn new() -> Self {
         Self {
+            home_path: None,
             remote_path: None,
             files: Dotfiles::new(),
         }
