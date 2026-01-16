@@ -16,16 +16,8 @@ const IGNORE_LINE: &str = "dot-manager: ignore after this";
 pub struct Manager(Vec<Status>);
 
 impl Manager {
-    fn new() -> Self {
-        Self(Vec::new())
-    }
-
-    fn push(&mut self, item: Status) {
-        self.0.push(item)
-    }
-
-    pub fn check(config: Config, log: bool) -> Result<Self> {
-        let mut statuses = Self::new();
+    pub fn new(config: Config) -> Result<Self> {
+        let mut statuses = Vec::new();
 
         for Dotfile {
             local_path,
@@ -40,24 +32,13 @@ impl Manager {
 
             match (local_path.exists(), remote_file_path.exists()) {
                 (false, false) => {
-                    if log {
-                        log::error!(
-                            "`{}` does not exists and is not available on remote",
-                            local_path.display()
-                        );
-                    }
+                    statuses.push(Status::Absent(local_path));
                 }
                 (true, false) => {
-                    if log {
-                        log::warn!("`{}` can be uploaded on remote", local_path.display());
-                    }
                     let local_content = read_content(&local_path)?;
                     statuses.push(Status::Upload(remote_file_path, local_content));
                 }
                 (false, true) => {
-                    if log {
-                        log::warn!("`{}` can be downloaded from remote", local_path.display());
-                    }
                     let remote_content = read_content(&remote_file_path)?;
                     statuses.push(Status::Download(local_path, remote_content));
                 }
@@ -66,13 +47,8 @@ impl Manager {
                     let remote_content = read_content(&remote_file_path)?;
 
                     if local_content == remote_content {
-                        if log {
-                            log::info!("`{}` is up to date", local_path.display());
-                        }
+                        statuses.push(Status::UpToDate(local_path));
                     } else {
-                        if log {
-                            log::warn!("`{}` can be updated", local_path.display());
-                        }
                         statuses.push(Status::Update(
                             (local_path, local_content),
                             (remote_file_path, remote_content),
@@ -82,11 +58,53 @@ impl Manager {
             }
         }
 
-        Ok(statuses)
+        Ok(Self(statuses))
+    }
+
+    pub fn check(&self) {
+        let mut up_to_date = Vec::new();
+        let mut to_update = Vec::new();
+        let mut to_upload = Vec::new();
+        let mut to_download = Vec::new();
+        let mut absent = Vec::new();
+
+        for status in &self.0 {
+            match status {
+                Status::UpToDate(path) => up_to_date.push(path.display()),
+                Status::Update((local_path, _), (remote_path, _)) => {
+                    to_update.push((local_path.display(), remote_path.display()));
+                }
+                Status::Upload(path, _) => to_upload.push(path.display()),
+                Status::Download(path, _) => to_download.push(path.display()),
+                Status::Absent(path) => absent.push(path.display()),
+            }
+        }
+
+        for path in up_to_date {
+            println!("`{}` is up to date", path);
+        }
+
+        for (local, remote) in to_update {
+            println!("`{}` and `{}` are not synced", local, remote);
+        }
+
+        for path in to_upload {
+            println!("`{}` can be uploaded", path);
+        }
+
+        for path in to_download {
+            println!("`{}` can be downloaded", path);
+        }
+
+        for path in absent {
+            println!("`{}` does not exist locally or on remote", path);
+        }
     }
 
     pub fn run(&self, cli: Cli) -> Result<()> {
-        println!();
+        if cli.check {
+            println!();
+        }
 
         for status in &self.0 {
             match status {
@@ -96,21 +114,21 @@ impl Manager {
                     match cli.update.as_ref().expect("update is some") {
                         UpdateMode::Local => {
                             fs::write(local_path, remote_content)?;
-                            log::info!("`{}`: Updated", local_path.display());
+                            println!("`{}`: Updated", local_path.display());
                         }
                         UpdateMode::Remote => {
                             fs::write(remote_path, local_content)?;
-                            log::info!("`{}`: Updated", remote_path.display());
+                            println!("`{}`: Updated", remote_path.display());
                         }
                     }
                 }
                 Status::Upload(path, content) if cli.upload => {
                     fs::write(path, content)?;
-                    log::info!("`{}`: Uploaded", path.display());
+                    println!("`{}`: Uploaded", path.display());
                 }
                 Status::Download(path, content) if cli.download => {
                     fs::write(path, content)?;
-                    log::info!("`{}`: Downloaded", path.display());
+                    println!("`{}`: Downloaded", path.display());
                 }
                 _ => {}
             }
@@ -138,9 +156,11 @@ fn read_content(path: &Path) -> Result<String> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 enum Status {
+    UpToDate(PathBuf),
     Update((PathBuf, String), (PathBuf, String)),
     Upload(PathBuf, String),
     Download(PathBuf, String),
+    Absent(PathBuf),
 }
