@@ -80,32 +80,48 @@ impl Manager {
             }
         }
 
-        for path in up_to_date {
-            println!("`{}` is up to date", path);
+        if !up_to_date.is_empty() {
+            println!("Up to date:");
+            for path in up_to_date {
+                println!("* {}", path);
+            }
+            println!();
         }
 
-        for (local, remote) in to_update {
-            println!("`{}` and `{}` are not synced", local, remote);
+        if !to_update.is_empty() {
+            println!("To update:");
+            for (local, remote) in to_update {
+                println!("* {} - {}", local, remote);
+            }
+            println!();
         }
 
-        for path in to_upload {
-            println!("`{}` can be uploaded", path);
+        if !to_upload.is_empty() {
+            println!("To upload:");
+            for path in to_upload {
+                println!("* {}", path);
+            }
+            println!();
         }
 
-        for path in to_download {
-            println!("`{}` can be downloaded", path);
+        if !to_download.is_empty() {
+            println!("To download:");
+            for path in to_download {
+                println!("* {}", path);
+            }
+            println!();
         }
 
-        for path in absent {
-            println!("`{}` does not exist locally or on remote", path);
+        if !absent.is_empty() {
+            println!("Does not exists:");
+            for path in absent {
+                println!("* {}", path);
+            }
+            println!();
         }
     }
 
     pub fn run(&self, cli: Cli) -> Result<()> {
-        if cli.check {
-            println!();
-        }
-
         for status in &self.0 {
             match status {
                 Status::Update((local_path, local_content), (remote_path, remote_content))
@@ -113,21 +129,21 @@ impl Manager {
                 {
                     match cli.update.as_ref().expect("update is some") {
                         UpdateMode::Local => {
-                            fs::write(local_path, remote_content)?;
+                            write_content(local_path, remote_content)?;
                             println!("`{}`: Updated", local_path.display());
                         }
                         UpdateMode::Remote => {
-                            fs::write(remote_path, local_content)?;
+                            write_content(remote_path, local_content)?;
                             println!("`{}`: Updated", remote_path.display());
                         }
                     }
                 }
                 Status::Upload(path, content) if cli.upload => {
-                    fs::write(path, content)?;
+                    write_content(path, content)?;
                     println!("`{}`: Uploaded", path.display());
                 }
                 Status::Download(path, content) if cli.download => {
-                    fs::write(path, content)?;
+                    write_content(path, content)?;
                     println!("`{}`: Downloaded", path.display());
                 }
                 _ => {}
@@ -153,6 +169,21 @@ fn read_content(path: &Path) -> Result<String> {
             Ok(content)
         }
         Err(err) => bail!("failed to read content at `{}`: {}", path.display(), err),
+    }
+}
+
+fn write_content(path: &Path, content: &str) -> Result<()> {
+    if !path.exists()
+        && let Some(parent) = path.parent()
+        && !parent.exists()
+    {
+        fs::create_dir_all(parent)?;
+    }
+
+    if let Err(err) = fs::write(path, content) {
+        bail!("failed to write content in `{}`: {}", path.display(), err);
+    } else {
+        Ok(())
     }
 }
 
