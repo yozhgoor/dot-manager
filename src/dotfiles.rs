@@ -25,6 +25,8 @@ impl std::iter::IntoIterator for Dotfiles {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Dotfile {
+    #[serde(rename = "local")]
     pub local_path: PathBuf,
+    #[serde(rename = "remote")]
     pub remote_path: PathBuf,
 }
