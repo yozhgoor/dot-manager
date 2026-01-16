@@ -1,6 +1,6 @@
 # dot-manager
 
-Simple dotfiles manager
+Simple dotfiles manager for Arch Linux.
 
 ## Usage
 
