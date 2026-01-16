@@ -54,7 +54,11 @@ impl Manager {
                 }
                 (false, true) => {
                     let remote_content = read_content(&remote_file_path)?;
-                    statuses.push(Status::Download(local_path, local_file_path, remote_content));
+                    statuses.push(Status::Download(
+                        local_path,
+                        local_file_path,
+                        remote_content,
+                    ));
                 }
                 (true, true) => {
                     let local_content = read_content(&local_file_path)?;
@@ -85,7 +89,7 @@ impl Manager {
         for status in &self.0 {
             match status {
                 Status::UpToDate(path, _) => up_to_date.push(path.display()),
-                Status::Update((local_path, _,  _), (remote_path, _, _)) => {
+                Status::Update((local_path, _, _), (remote_path, _, _)) => {
                     to_update.push((local_path.display(), remote_path.display()));
                 }
                 Status::Upload(path, _, _) => to_upload.push(path.display()),
@@ -138,20 +142,19 @@ impl Manager {
     pub fn run(&self, cli: Cli) -> Result<()> {
         for status in &self.0 {
             match status {
-                Status::Update((_, local_path, local_content), (_, remote_path, remote_content))
-                    if cli.update.is_some() =>
-                {
-                    match cli.update.as_ref().expect("update is some") {
-                        UpdateMode::Local => {
-                            write_content(local_path, remote_content)?;
-                            println!("`{}`: Updated", local_path.display());
-                        }
-                        UpdateMode::Remote => {
-                            write_content(remote_path, local_content)?;
-                            println!("`{}`: Updated", remote_path.display());
-                        }
+                Status::Update(
+                    (_, local_path, local_content),
+                    (_, remote_path, remote_content),
+                ) if cli.update.is_some() => match cli.update.as_ref().expect("update is some") {
+                    UpdateMode::Local => {
+                        write_content(local_path, remote_content)?;
+                        println!("`{}`: Updated", local_path.display());
                     }
-                }
+                    UpdateMode::Remote => {
+                        write_content(remote_path, local_content)?;
+                        println!("`{}`: Updated", remote_path.display());
+                    }
+                },
                 Status::Upload(_, path, content) if cli.upload => {
                     write_content(path, content)?;
                     println!("`{}`: Uploaded", path.display());
