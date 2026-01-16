@@ -30,12 +30,11 @@ home_path = "/home/user" # optional
 
 [[file]]
 local = ".gitignore"
-# local = "/home/user/.gitignore" if you want to use a full path
-remote = ".gitignore" # This will synchronize `.gitignore` to `dotfiles/.gitignore`
+remote = "git/.gitignore" # This will synchronize `.gitignore` to `dotfiles/git/.gitignore`
 
 [[file]]
-local = ".config/nvim/init.lua"
-remote = "nvim/init.lua" # This will synchronize `.config/nvim/init.lua` to `dotfiles/nvim/init.lua`
+local = "/home/user/.config/dot-manager/config.toml"
+remote = "config.toml" # This will synchronize `.config/dot-manager` to `dotfiles/config.toml`
 ```
 
 Note that you need to provide a path to a file, you can't synchronize a full directory (yet?).
