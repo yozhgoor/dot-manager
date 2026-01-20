@@ -30,36 +30,39 @@ impl Manager {
             config.remote_path
         };
 
-        let pkg_list_short_path = PathBuf::from("packages.x86_64");
-        let remote_pkg_list_path = full_remote_path.join(&pkg_list_short_path);
-        let local_pkg_list_content = {
-            let stdout = std::process::Command::new("pacman")
-                .args(["--query", "--explicit"])
-                .output()?
-                .stdout;
+        #[cfg(feature = "pacman")]
+        {
+            let pkg_list_short_path = PathBuf::from("packages.x86_64");
+            let remote_pkg_list_path = full_remote_path.join(&pkg_list_short_path);
+            let local_pkg_list_content = {
+                let stdout = std::process::Command::new("pacman")
+                    .args(["--query", "--explicit"])
+                    .output()?
+                    .stdout;
 
-            str::from_utf8(&stdout)?.to_string()
-        };
+                str::from_utf8(&stdout)?.to_string()
+            };
 
-        if !remote_pkg_list_path.exists() {
-            statuses.push(Status::Upload(FileWithContent::new(
-                pkg_list_short_path,
-                remote_pkg_list_path,
-                local_pkg_list_content,
-            )));
-        } else {
-            let remote_content = fs::read_to_string(&remote_pkg_list_path)?;
-            if local_pkg_list_content == remote_content {
-                statuses.push(Status::UpToDate(File::new(
+            if !remote_pkg_list_path.exists() {
+                statuses.push(Status::Upload(FileWithContent::new(
                     pkg_list_short_path,
                     remote_pkg_list_path,
+                    local_pkg_list_content,
                 )));
             } else {
-                statuses.push(Status::UpdatePkgList(FileWithContent::new(
-                    pkg_list_short_path,
-                    remote_pkg_list_path,
-                    remote_content,
-                )));
+                let remote_content = fs::read_to_string(&remote_pkg_list_path)?;
+                if local_pkg_list_content == remote_content {
+                    statuses.push(Status::UpToDate(File::new(
+                        pkg_list_short_path,
+                        remote_pkg_list_path,
+                    )));
+                } else {
+                    statuses.push(Status::UpdatePkgList(FileWithContent::new(
+                        pkg_list_short_path,
+                        remote_pkg_list_path,
+                        remote_content,
+                    )));
+                }
             }
         }
 
@@ -138,6 +141,7 @@ impl Manager {
     pub fn check(&self) {
         let mut up_to_date = Vec::new();
         let mut to_update = Vec::new();
+        #[cfg(feature = "pacman")]
         let mut to_update_pkg_list = None;
         let mut to_upload = Vec::new();
         let mut to_download = Vec::new();
@@ -152,6 +156,7 @@ impl Manager {
                         remote_file.short_path.display(),
                     ));
                 }
+                #[cfg(feature = "pacman")]
                 Status::UpdatePkgList(file) => to_update_pkg_list = Some(file.short_path.display()),
                 Status::Upload(file) => to_upload.push(file.short_path.display()),
                 Status::Download(file) => to_download.push(file.short_path.display()),
@@ -169,6 +174,7 @@ impl Manager {
 
         if !to_update.is_empty() {
             println!("To update:");
+            #[cfg(feature = "pacman")]
             if let Some(path) = to_update_pkg_list {
                 println!("* {}", path);
             }
@@ -218,6 +224,7 @@ impl Manager {
                         }
                     }
                 }
+                #[cfg(feature = "pacman")]
                 Status::UpdatePkgList(file) if cli.update.is_some() => {
                     write_content(&file.full_path, &file.content)?;
                     println!("`{}`: Updated", file.short_path.display());
@@ -242,6 +249,7 @@ impl Manager {
 enum Status {
     UpToDate(File),
     Update(FileWithContent, FileWithContent),
+    #[cfg(feature = "pacman")]
     UpdatePkgList(FileWithContent),
     Upload(FileWithContent),
     Download(FileWithContent),
