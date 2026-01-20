@@ -1,6 +1,16 @@
 # dot-manager
 
-Simple dotfiles manager for Arch Linux.
+Simple dotfiles manager.
+
+## Installation
+
+Clone the project, navigate to the directory and install using Cargo:
+```
+cargo install --path .
+```
+
+To enable optional features, use the `--features` flag. See [Features](#features) for available
+options.
 
 ## Usage
 
@@ -86,3 +96,11 @@ Additionally, there are arguments you can use that follow the output:
 - `--download`: Download remote files that don't exist in the local filesystem.
 
 Note that you can use multiple arguments to do all the steps you want in one command.
+
+## Features
+
+### `pacman`
+
+Arch Linux users can enable the `pacman` feature to track installed packages alongside their
+dotfiles. When enabled, `dot-manager` generates a `packages.x86_64` file in the remote directory
+containing all explicitly installed packages (equivalent to `pacman -Qe`).
