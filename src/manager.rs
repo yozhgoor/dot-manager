@@ -215,8 +215,39 @@ impl Manager {
                 Status::Update(local_file, remote_file) if cli.update.is_some() => {
                     match cli.update.as_ref().expect("update is some") {
                         UpdateMode::Local => {
-                            write_content(&local_file.full_path, &remote_file.content)?;
-                            println!("`{}`: Updated", local_file.short_path.display());
+                            let sure = {
+                                use std::io::stdin;
+
+                                println!("Are you sure you want to update your local files? (Y/n)");
+
+                                let mut input = String::new();
+
+                                loop {
+                                    match stdin().read_line(&mut input) {
+                                        Ok(_n) => match input.trim() {
+                                            "" | "Yes" | "yes" | "Y" | "y" => {
+                                                break true;
+                                            }
+                                            "No" | "no" | "N" | "n" => {
+                                                break false;
+                                            }
+                                            _ => println!("`{}` is not a valid input", input.trim()),
+                                        },
+                                        Err(err) => {
+                                            bail!("failed to read input: {}", err);
+                                        }
+                                    }
+
+                                    input.clear()
+                                }
+                            };
+
+                            if sure {
+                                write_content(&local_file.full_path, &remote_file.content)?;
+                                println!("`{}`: Updated", local_file.short_path.display());
+                            } else {
+                                println!("Aborting");
+                            }
                         }
                         UpdateMode::Remote => {
                             write_content(&remote_file.full_path, &local_file.content)?;
