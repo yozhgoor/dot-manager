@@ -231,7 +231,9 @@ impl Manager {
                                             "No" | "no" | "N" | "n" => {
                                                 break false;
                                             }
-                                            _ => println!("`{}` is not a valid input", input.trim()),
+                                            _ => {
+                                                println!("`{}` is not a valid input", input.trim())
+                                            }
                                         },
                                         Err(err) => {
                                             bail!("failed to read input: {}", err);
